@@ -65,44 +65,49 @@ int main() {
 ### Arena* arena_create(u64 size)
 
 Creates a new arena with the specified size.
-
+```
     size: The size of the arena in bytes.
     Returns: A pointer to the created arena.
+```
 
 ### void* aalloc(Arena *arena, u64 size)
 
 Allocates a block of memory of the specified size in the arena.
-
+```
     arena: A pointer to the arena.
     size: The size of the block to allocate in bytes.
     Returns: A pointer to the allocated block.
+```
 
 ### void afree(void *ptr)
-
+```
 Frees a previously allocated block of memory.
 
     ptr: A pointer to the block to free.
+```
 
 ### void arena_reset(Arena *arena)
-
+```
 Resets the arena, freeing all allocations made.
 
     arena: A pointer to the arena.
+```
 
 ### void arena_delete(Arena *arena)
-
+```
 Deletes an arena and frees all associated memory.
 
     arena: A pointer to the arena to delete.
+```
 
 ### void merge_free_blocks(Arena *arena)
-
+```
 Merges adjacent free blocks in the arena into a single larger block to reduce fragmentation.
 
     arena: A pointer to the arena.
+```
 
 ## Contributing
-
 Contributions are welcome! If you have suggestions, bug reports, or feature requests, please open an issue or submit a pull request.
 
     Fork the repository.
