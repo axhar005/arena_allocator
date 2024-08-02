@@ -1,15 +1,17 @@
-#pragma once
+#ifndef ARENA_H
+# define ARENA_H
 
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdalign.h>
-#include <assert.h>
-#include <stdbool.h>
+# include <stdint.h>
+# include <stddef.h>
+# include <stdlib.h>
+# include <stdalign.h>
+# include <assert.h>
+# include <stdbool.h>
+# include <errno.h>
 
-#define MAX_ARENA_SIZE 1024 * 1024 * 1	 								// 1 MB
-#define ARENA_ALIGNMENT 16												// 8 or 16 bytes
-#define ALIGN_UP(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
+# define MAX_ARENA_SIZE 1024 * 1024 * 1	 								// 1 MB
+# define ARENA_ALIGNMENT 16												// 8 or 16 bytes
+# define ALIGN_UP(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
 
 // Data types
 typedef uint8_t		u8;
@@ -108,3 +110,5 @@ u64 get_block_size(void *ptr);
  * @param content An indicator to print or not the content of the blocks.
  */
 void print_arena(Arena *arena, bool content);
+
+#endif

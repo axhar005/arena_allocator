@@ -47,7 +47,8 @@ set_used(void *ptr, bool used) {
 	*((u32 *)real_ptr) = size_with_bit;
 }
 
-void merge_free_blocks(Arena *arena) {
+void
+merge_free_blocks(Arena *arena) {
 	u64 offset = 0;
 	
 	while (offset < arena->offset) {
@@ -79,17 +80,25 @@ void merge_free_blocks(Arena *arena) {
 }
 
 Arena *
-arena_create(u64 size){
+arena_create(u64 size) {
 	if (size == 0 || size > MAX_ARENA_SIZE) {
 		fprintf(stderr, "Error: invalid arena size.\n");
 		return NULL;
 	}
 
 	Arena *arena = (Arena *)malloc(sizeof(Arena));
-	assert(arena != NULL);
+	if (!arena){
+		fprintf(stderr, "Error: Failed to allocate arena. Reason: %s\n", strerror(errno));
+		return NULL;
+	}
 	
 	arena->memory = (u8 *)malloc(size);
-	assert(arena->memory != NULL);
+	if (!arena->memory){
+		fprintf(stderr, "Error: Failed to allocate arena memory. Reason: %s\n", strerror(errno));
+		free(arena);
+		return NULL;
+	}
+
 	arena->size = size;
 	arena->offset = 0;
 	arena->space = size;
@@ -186,7 +195,7 @@ arena_delete(Arena *arena) {
 }
 
 void
-arena_reset(Arena *arena){
+arena_reset(Arena *arena) {
 	arena->offset = 0;
 	arena->space = arena->size;
 }
@@ -199,7 +208,7 @@ print_arena(Arena *arena, bool content) {
 	printf("|-------------->>>\n");
 	printf("| Arena -> %p:\n", arena);
 	printf("| Size: %llu\n", arena->size);
-	printf("| Free: %.4f%% Used: %.4f%%\n| Free: %llu byte Used: %llu byte\n", free_percent, used_percent, arena->space, arena->offset);
+	printf("| Free: %llu byte Used: %llu byte\n| Free: %.4f%% Used: %.4f%%\n", arena->space, arena->offset, free_percent, used_percent);
 
 	if (content){
 		u64 offset = 0;
