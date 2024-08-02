@@ -41,8 +41,8 @@ int main() {
 
     // Use the allocated memory
     if (ptr1 && ptr2) {
-        sprintf((char *)ptr1, "Hello, Arena Allocator!");
-        printf("%s\n", (char *)ptr1);
+        sprintf(ptr1, "Hello, Arena Allocator!");
+        printf("%s\n", ptr1);
     }
 
     // Free the memory blocks

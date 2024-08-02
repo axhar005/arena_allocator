@@ -223,24 +223,3 @@ print_arena(Arena *arena, bool content) {
 	}
 	printf("|--------------<<<\n\n");
 }
-
-int
-main(){
-	Arena *arena = arena_create(MAX_ARENA_SIZE);
-
-	for (int i =0; i < 110; i++) {
-		char *str = (char *) aalloc(arena, sizeof(char) * 10018);
-		if (str)
-			sprintf(str, "allo\n");
-	}
-
-	Arena *tmp = arena;
-	while (tmp != NULL) {
-		Arena *next = tmp->child;
-		print_arena(tmp, false);	
-		tmp = next;
-	}
-
-	arena_delete(arena);
-	return 0;
-}
