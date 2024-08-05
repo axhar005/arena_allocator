@@ -1,50 +1,84 @@
 /**
- * Arena Allocator for Memory Management.
- * 
- * This file implements an arena allocator that allows efficient allocation and
- * deallocation of memory blocks. The allocator uses a primary arena and can
- * create child arenas in case of overflow. Allocated blocks are tracked using
- * a u32 containing information about the size and status (free or used).
- */
+* Arena Allocator for Memory Management.
+* 
+* This file implements an arena allocator that allows efficient allocation and
+* deallocation of memory blocks. The allocator uses a primary arena and can
+* create child arenas in case of overflow. Allocated blocks are tracked using
+* a metadata struct containing information about the block size, alloc size
+* and status (free or used).
+*/
 
 #include "arena.h"
 #include <stdio.h>
+#include <strings.h>
 #include <unistd.h>
 #include <string.h>
 
-// get the arena ptr len
 u64
 get_block_size(void *ptr) {
-	if (ptr == NULL) return 0;
-	u8 *real_ptr = (u8 *)ptr - sizeof(u32);
-	u32 size_with_bit = *((u32 *)real_ptr);
-	return size_with_bit & ~(1 << 31); 
+	if (ptr == NULL) {
+		fprintf(stderr, "Error: ptr NULL passed in get_block_size.\n");
+		return 0;
+	}
+	metadata *meta = (metadata *)((u8 *)ptr - sizeof(metadata));
+	if (meta->block_size == 0) {
+		fprintf(stderr, "Error: Block size is 0.\n");
+	}
+	return meta->block_size;
 }
 
 bool
 is_block_free(void *ptr) {
-	if (ptr == NULL) return false;
-
-	u32 *real_ptr = (u32 *)((u8 *)ptr - sizeof(u32));
-	return (*real_ptr & (1 << 31)) == 0;
+	if (ptr == NULL) {
+		fprintf(stderr, "Error: ptr NULL passed in is_block_free.\n");
+		return false;
+	}
+	metadata *meta = (metadata *)((u8 *)ptr - sizeof(metadata));
+	return meta->block_used == 0;
 }
 
 void
-set_used(void *ptr, bool used) {
+set_block_used(void *ptr, bool used) {
 	if (ptr == NULL) {
+		fprintf(stderr, "Error: ptr NULL passed in set_block_used.\n");
 		return;
 	}
+	metadata *meta = (metadata *)((u8 *)ptr - sizeof(metadata));
+	meta->block_used = used ? 1 : 0;
+}
 
-	u8 *real_ptr = (u8 *)ptr - sizeof(u32);
-	u32 size_with_bit = *((u32 *)real_ptr);
 
-	if (used) {
-		size_with_bit |= (1 << 31);
-	} else {
-		size_with_bit &= ~(1 << 31);
+void
+set_block_size(void *ptr, u64 new_size) {
+	if (ptr == NULL) {
+		fprintf(stderr, "Error: ptr NULL passed in set_block_size.\n");
+		return;
 	}
+	metadata *meta = (metadata *)((u8 *)ptr - sizeof(metadata));
+	meta->block_size = new_size;
+}
 
-	*((u32 *)real_ptr) = size_with_bit;
+void
+set_data_size(void *ptr, u32 size) {
+	if (ptr == NULL) {
+		fprintf(stderr, "Error: ptr NULL passed in set_data_size.\n");
+		return;
+	}
+	metadata *meta = (metadata *)((u8 *)ptr - sizeof(metadata));
+	meta->data_size = size;
+}
+
+u64
+get_data_size(void *ptr) {
+	if (ptr == NULL) {
+		fprintf(stderr, "Error: ptr NULL passed in get_block_size.\n");
+		return 0;
+	}
+	metadata *meta = (metadata *)((u8 *)ptr - sizeof(metadata));
+	if (meta->block_size == 0) {
+		fprintf(stderr, "Error: Block size is 0.\n");
+	}
+	return meta->data_size;
 }
 
 void
@@ -53,31 +87,28 @@ merge_free_blocks(Arena *arena) {
 	
 	while (offset < arena->offset) {
 		void *block_ptr = arena->memory + offset;
-		void *block_data = block_ptr + sizeof(u32);
-		u64 block_size = get_block_size(block_data);
-		
-		u64 next_offset = offset + sizeof(u32) + block_size;
-		next_offset = ALIGN_UP(next_offset, ARENA_ALIGNMENT);
-
-		if (next_offset >= arena->offset) {
+		void *data_ptr = block_ptr + sizeof(metadata);
+		u64 block_size = get_block_size(data_ptr);
+		if (offset + block_size >= arena->offset)
 			break;
+
+		void *next_block_ptr = block_ptr + block_size;
+		void *next_data_ptr = next_block_ptr + sizeof(metadata);
+		u64 next_block_size = get_block_size(next_data_ptr);
+
+
+		if (is_block_free(data_ptr) && is_block_free(next_data_ptr)) {
+			bzero(next_block_ptr, sizeof(metadata));
+			set_block_size(data_ptr, block_size + next_block_size);
+			set_block_used(data_ptr, false);
+			// offset += block_size + next_block_size;
+			continue;
 		}
 
-		void *next_block_ptr = arena->memory + next_offset;
-		void *next_block_data = next_block_ptr + sizeof(u32);
-		u64 next_block_size = get_block_size(next_block_data);
-
-		if (is_block_free(block_data) && is_block_free(next_block_data)) {
-			u32 new_size = block_size + next_block_size + sizeof(u32);
-
-			*((u32 *)block_ptr) = new_size | (1 << 31);
-
-			block_size = new_size;
-		} else {
-			offset = next_offset;
-		}
+		offset += block_size;
 	}
 }
+
 
 Arena *
 arena_create(u64 size) {
@@ -85,60 +116,83 @@ arena_create(u64 size) {
 		fprintf(stderr, "Error: invalid arena size.\n");
 		return NULL;
 	}
-
 	Arena *arena = (Arena *)malloc(sizeof(Arena));
-	if (!arena){
+	if (!arena) {
 		fprintf(stderr, "Error: Failed to allocate arena. Reason: %s\n", strerror(errno));
 		return NULL;
 	}
-	
 	arena->memory = (u8 *)malloc(size);
-	if (!arena->memory){
+	if (!arena->memory) {
 		fprintf(stderr, "Error: Failed to allocate arena memory. Reason: %s\n", strerror(errno));
 		free(arena);
 		return NULL;
 	}
-
 	arena->size = size;
 	arena->offset = 0;
 	arena->space = size;
-
+	arena->child = NULL;
 	return arena;
 }
 
 void *
 find_free_block(Arena *arena, u64 size) {
 	u64 offset = 0;
-	
 	while (offset < arena->offset) {
 		void *block_ptr = arena->memory + offset;
-		void *tmp = block_ptr + sizeof(u32);
+		void *data_ptr = block_ptr + sizeof(metadata);
+		u64 block_size = get_block_size(data_ptr);
 
-		u64 len = get_block_size(tmp);
-		if (is_block_free(tmp) && len >= size) {
+		if (is_block_free(data_ptr) && block_size >= size) {
 			return block_ptr;
 		}
 
-		offset += len + sizeof(u32);
-		offset = ALIGN_UP(offset, ARENA_ALIGNMENT);
+		offset += block_size;
 	}
-
 	return NULL;
 }
 
 void *
 aalloc(Arena *arena, u64 size) {
-	u64 total_size = size + sizeof(u32);
-	u64 aligned_offset = ALIGN_UP(arena->offset, ARENA_ALIGNMENT);
-
+	if (!arena) {
+		fprintf(stderr, "Error: invalid arena ptr for aalloc.\n");
+		return NULL;
+	}
+	if (size == 0) {
+		fprintf(stderr, "Error: invalid size for aalloc.\n");
+		return NULL;
+	}
+	u64 total_size = ARENA_ALIGN_UP(size + sizeof(metadata));
 	if (total_size > arena->size) {
 		fprintf(stderr, "Error: arena allocation too large.\n");
 		return NULL;
 	}
 
-	void *free_block_ptr = find_free_block(arena, size);
+	void *free_block_ptr = find_free_block(arena, total_size);
+	if (free_block_ptr) {
+		void *free_data_ptr = free_block_ptr + sizeof(metadata);
+		u64 free_block_size = get_block_size(free_data_ptr);
+		if (free_block_size >= total_size + ARENA_ALIGN_UP(ARENA_ALIGNMENT + sizeof(metadata))) {
+			//split
+			//update actual block
+			set_block_size(free_data_ptr, total_size);
+			set_block_used(free_data_ptr, true);
 
-	if (!free_block_ptr && (aligned_offset + total_size > arena->size)) {
+			//set the new block
+			void *split_block_ptr = free_block_ptr + total_size;
+			void *split_data_ptr = split_block_ptr + sizeof(metadata);
+			u64 split_block_size = free_block_size - total_size;
+			set_block_size(split_data_ptr, split_block_size);
+			set_block_used(split_data_ptr, false);
+			set_data_size(split_data_ptr, 0);
+
+		} else {
+			set_block_used(free_data_ptr, true);
+			set_data_size(free_data_ptr, size);
+		}
+		return(free_data_ptr);
+	}
+
+	if (arena->offset + total_size > arena->size) {
 		if (arena->child) {
 			return aalloc(arena->child, size);
 		} else {
@@ -146,42 +200,26 @@ aalloc(Arena *arena, u64 size) {
 			return aalloc(arena->child, size);
 		}
 	}
-
-	if (free_block_ptr) {
-		u64 free_offset = (u8*)free_block_ptr - arena->memory;
-		aligned_offset = ALIGN_UP(free_offset, ARENA_ALIGNMENT);
-		if (aligned_offset + total_size > arena->size) {
-			free_block_ptr = NULL;
-		}
-	}
-
-	void *ptr = free_block_ptr ? free_block_ptr : arena->memory + aligned_offset;
-	u32 size_with_bit = size | (1 << 31);
-	*((u32 *)ptr) = size_with_bit;
-	ptr = (u8 *)ptr + sizeof(u32);
-
-	memset(ptr, 0, size);
-
-	if (!free_block_ptr) {
-		arena->offset = aligned_offset + total_size;
-		arena->space = arena->size - arena->offset;
-	}
-
-	return ptr;
+	void *block_ptr = arena->memory + arena->offset;
+	void *data_ptr = block_ptr + sizeof(metadata);
+	bzero(block_ptr, total_size);
+	set_block_size(data_ptr, total_size);
+	set_block_used(data_ptr, true);
+	set_data_size(data_ptr, size);
+	arena->offset += total_size;
+	return data_ptr;
 }
 
 void
 afree(void *ptr) {
 	if (ptr == NULL) {
+		fprintf(stderr, "Error: invalid ptr for free.\n");
 		return;
 	}
-	u8 *real_ptr = (u8 *)ptr - sizeof(u32);
-	u32 size_with_bit = *((u32 *)real_ptr);
-	u32 size = size_with_bit & ~(1 << 31);
-
-	memset(real_ptr + sizeof(u32), 0, size);
-
-	*((u32 *)real_ptr) = size;
+	u64 size = get_block_size(ptr) - sizeof(metadata);
+	set_data_size(ptr, 0);
+	bzero(ptr, size);
+	set_block_used(ptr, false);
 }
 
 void
@@ -214,20 +252,21 @@ print_arena(Arena *arena, bool content) {
 		u64 offset = 0;
 		while (offset < arena->offset) {
 			void *block_ptr = arena->memory + offset;
-			void *tmp = block_ptr + sizeof(u32);
+			void *data_ptr = block_ptr + sizeof(metadata);
 			
-			u64 len = get_block_size(tmp);
-			bool free = is_block_free(tmp);
+			u64 block_size = get_block_size(data_ptr);
+			u64 data_size = get_data_size(data_ptr);
+			bool free = is_block_free(data_ptr);
 
-			printf("| Block at %p: size = %llu, status = %s, content = ", block_ptr, len, free ? "free" : "used");
+			printf("| Block at %p: data_size = %llu, block_size = %llu, block_status = %s, content = ", block_ptr, data_size, block_size, free ? "free" : "used");
 
-			for (u64 i = 0; i < len; i++) {
-				printf("%02x ", ((u8 *)tmp)[i]);
+			for (u64 i = 0; i < block_size - sizeof(metadata); i++) {
+				printf("%02x ", ((u8 *)data_ptr)[i]);
 			}
 			printf("\n");
 
-			offset += len + sizeof(u32);
-			offset = (offset + (ARENA_ALIGNMENT - 1)) & ~(ARENA_ALIGNMENT - 1);
+			offset += block_size;
+			// offset = (offset + (ARENA_ALIGNMENT - 1)) & ~(ARENA_ALIGNMENT - 1);
 		}
 	}
 	printf("|--------------<<<\n\n");

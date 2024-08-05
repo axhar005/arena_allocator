@@ -11,7 +11,7 @@
 
 # define MAX_ARENA_SIZE 1024 * 1024 * 1	 								// 1 MB
 # define ARENA_ALIGNMENT 16												// 8 or 16 bytes
-# define ALIGN_UP(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
+# define ARENA_ALIGN_UP(size) (((size) + ((ARENA_ALIGNMENT) - 1)) & ~((ARENA_ALIGNMENT) - 1))
 
 // Data types
 typedef uint8_t		u8;
@@ -35,6 +35,12 @@ typedef struct arena_t{
 	u64 			offset;	// Current offset in the arena
 	struct arena_t	*child;	// Pointer to a child arena in case of overflow
 } Arena;
+
+typedef struct{
+	u32 data_size;
+	u32 block_used : 1;
+	u32 block_size : 31;
+} metadata;
 
 /**
  * Creates a new arena with the specified size.
@@ -95,7 +101,14 @@ bool is_block_free(void *ptr);
  * @param ptr A pointer to the block.
  * @param used A boolean indicating whether the block should be marked as used (true) or free (false).
  */
-void set_used(void *ptr, bool used);
+void set_block_used(void *ptr, bool used);
+
+/**
+ * Sets the size of a memory block while preserving its status.
+ * @param ptr A pointer to the data portion of the memory block.
+ * @param new_size The new size to assign to the block.
+ */
+void set_block_size(void *ptr, u64 new_size);
 
 /**
  * Gets the size of an allocated block of memory.
@@ -103,6 +116,21 @@ void set_used(void *ptr, bool used);
  * @return The size of the block in bytes.
  */
 u64 get_block_size(void *ptr);
+
+/**
+ * Sets the data size of a memory block.
+ * @param ptr A pointer to the data portion of the memory block.
+ * @param size The new data size to assign.
+ */
+void set_data_size(void *ptr, u32 size);
+
+/**
+ * Retrieves the data size of a memory block.
+ * @param ptr A pointer to the data portion of the memory block.
+ * @return The size of the data portion as an unsigned 64-bit integer.
+ */
+u64 get_data_size(void *ptr);
+
 
 /**
  * Prints the current state of the arena, including the proportion of free and used memory.
