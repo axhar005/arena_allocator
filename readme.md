@@ -34,6 +34,8 @@ Here is a simple example to demonstrate how to use the Arena Allocator:
 int main() {
     // Create an arena with a maximum size of 1 MB
     Arena *arena = arena_create(MAX_ARENA_SIZE);
+    if (!arena)
+    	return 0;
 
     // Allocate memory blocks
     void *ptr1 = aalloc(arena, 100);
