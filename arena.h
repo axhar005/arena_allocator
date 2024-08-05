@@ -9,9 +9,11 @@
 # include <stdbool.h>
 # include <errno.h>
 
-# define MAX_ARENA_SIZE 1024 * 1024 * 1	 								// 1 MB
+# define MAX_ARENA_SIZE 1024 * 1	 								// 1 MB
 # define ARENA_ALIGNMENT 16												// 8 or 16 bytes
 # define ARENA_ALIGN_UP(size) (((size) + ((ARENA_ALIGNMENT) - 1)) & ~((ARENA_ALIGNMENT) - 1))
+# define MAX_FREE_COUNT 10
+# define MAX_BLOCK_SIZE ((1U << 31) - 1)
 
 // Data types
 typedef uint8_t		u8;
@@ -33,6 +35,7 @@ typedef struct arena_t{
 	u64 			space;	// Remaining free space in the arena
 	u64 			size;	// Total size of the arena
 	u64 			offset;	// Current offset in the arena
+	u8				free_count;
 	struct arena_t	*child;	// Pointer to a child arena in case of overflow
 } Arena;
 
@@ -61,7 +64,7 @@ void* aalloc(Arena *arena, u64 size);
  * Frees a previously allocated block of memory.
  * @param ptr A pointer to the block to free.
  */
-void afree(void *ptr);
+void afree(Arena *arena, void *ptr);
 
 /**
  * Resets the arena, freeing all allocations made.
