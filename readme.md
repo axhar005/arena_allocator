@@ -38,8 +38,8 @@ int main() {
     	return 1;
 
     // Allocate memory blocks
-    void *ptr1 = aalloc(arena, 100);
-    void *ptr2 = aalloc(arena, 200);
+    void *ptr1 = arena_alloc(arena, 100);
+    void *ptr2 = arena_alloc(arena, 200);
 
     // Use the allocated memory
     if (ptr1 && ptr2) {
@@ -48,11 +48,11 @@ int main() {
     }
 
     // Free the memory blocks
-    afree(ptr1);
-    afree(ptr2);
+    arena_free(ptr1);
+    arena_free(ptr2);
 
     // Merge free blocks to optimize memory
-    merge_free_blocks(arena);
+    arena_merge_free_blocks(arena);
 
     // Reset the arena
     arena_reset(arena);
@@ -72,7 +72,7 @@ Creates a new arena with the specified size.
     Returns: A pointer to the created arena.
 ```
 
-### void* aalloc(Arena *arena, u64 size)
+### void* arena_alloc(Arena *arena, u64 size)
 
 Allocates a block of memory of the specified size in the arena.
 ```
@@ -81,7 +81,7 @@ Allocates a block of memory of the specified size in the arena.
     Returns: A pointer to the allocated block.
 ```
 
-### void afree(void *ptr)
+### void arena_free(void *ptr)
 ```
 Frees a previously allocated block of memory.
 
@@ -102,7 +102,7 @@ Deletes an arena and frees all associated memory.
     arena: A pointer to the arena to delete.
 ```
 
-### void merge_free_blocks(Arena *arena)
+### void arena_merge_free_blocks(Arena *arena)
 ```
 Merges adjacent free blocks in the arena into a single larger block to reduce fragmentation.
 
