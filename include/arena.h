@@ -8,16 +8,17 @@
 # include <assert.h>
 # include <stdbool.h>
 # include <errno.h>
+# include <limits.h>
 
-# define MAX_ARENA_SIZE  1024 * 1024 * 1	 				// 1 MB
+# define MAX_ARENA_SIZE  1024 * 1024 * 1					// 1 MB
 
 # define ARENA_ALIGNMENT 16									// 8 or 16 bytes
 
 # define ARENA_ALIGN_UP(size) (((size) + ((ARENA_ALIGNMENT) - 1)) & ~((ARENA_ALIGNMENT) - 1))
 
-# define MAX_FREE_COUNT  10
+# define MAX_FREE_COUNT  10									// Max free count before arena_merge_free_blocks()
 
-# define MAX_BLOCK_SIZE ((1U << 31) - 1)
+# define MAX_BLOCK_SIZE ((1U << 31) - 1)					// Max unsigned int 31 bits size
 
 // Data types
 typedef uint8_t		u8;
@@ -35,18 +36,18 @@ typedef double		f64;
 
 // Structure of the arena
 typedef struct arena_t {
-	u8 				*memory;// Pointer to the allocated memory for the arena
-	u64 			space;	// Remaining free space in the arena
-	u64 			size;	// Total size of the arena
-	u64 			offset;	// Current offset in the arena
-	u8				free_count;
-	struct arena_t	*child;	// Pointer to a child arena in case of overflow
+	u8 				*memory;	// Pointer to the allocated memory for the arena
+	u64 			space;		// Remaining free space in the arena
+	u64 			size;		// Total size of the arena
+	u64 			offset;		// Current offset in the arena
+	u8				free_count;	// Counts frees and merges blocks when MAX_FREE_COUNT is reached
+	struct arena_t	*child;		// Pointer to a child arena in case of overflow
 } Arena;
 
 typedef struct {
-	u32 data_size;
-	u32 block_used : 1;
-	u32 block_size : 31;
+	u32 data_size;				// Size of the data actually allocated by the user
+	u32 block_used : 1;			// Block status indicator: 1 if the block is used, 0 if free
+	u32 block_size : 31;		// Total size of the block, including the alignment
 } metadata;
 
 /**
@@ -159,4 +160,12 @@ u64 arena_strlen(void *ptr);
  */
 void arena_print(Arena *arena, bool content);
 
+/**
+ * Prints the current state of the arena and child, including the proportion of free and used memory.
+ * @param arena A pointer to the arena.
+ * @param content An indicator to print or not the content of the blocks.
+ */
+void arena_print_child(Arena *arena, bool content);
+
 #endif
+

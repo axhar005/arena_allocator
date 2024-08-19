@@ -8,20 +8,32 @@
 * and status (free or used).
 */
 
-#include "arena.h"
+#include "../include/arena.h"
 #include <stdio.h>
 #include <strings.h>
 #include <unistd.h>
 #include <string.h>
 
+Arena *
+arena_contains_this_ptr(Arena *arena, void *data_ptr) {
+	Arena *current_arena = arena;
+	u8 *ptr = (u8 *)data_ptr;
+	while (!(ptr >= current_arena->memory && ptr < current_arena->memory + current_arena->offset)) {
+		if (!current_arena->child)
+			return NULL;
+		current_arena = current_arena->child;
+	}
+	return current_arena;
+}
+
 metadata *
-arena_get_block_metadata(void *restrict ptr){
+arena_get_block_metadata(void *restrict ptr) {
 	if (ptr == NULL) {
 		fprintf(stderr, "Error: Null pointer received in arena_get_block_metadata function.\n");
 		return 0;
 	}
 	metadata *meta = (metadata *)((u8 *)ptr - sizeof(metadata));
-	if (!meta){
+	if (!meta) {
 		fprintf(stderr, "Error: Failed to retrieve metadata. Metadata pointer is null.\n");
 		return NULL;
 	}
@@ -125,7 +137,7 @@ arena_merge_free_blocks(Arena *arena) {
 
 Arena *
 arena_create(u64 size) {
-	if (size == 0 || size > MAX_ARENA_SIZE) {
+	if (size == 0 || size >= MAX_BLOCK_SIZE) {
 		fprintf(stderr, "Error: invalid arena size.\n");
 		return NULL;
 	}
@@ -207,7 +219,7 @@ arena_alloc(Arena *arena, u64 size) {
 		if (arena->child) {
 			return arena_alloc(arena->child, size);
 		} else {
-			arena->child = arena_create(arena->size);
+			arena->child = arena_create(arena->size * 2);
 			return arena_alloc(arena->child, size);
 		}
 	}
@@ -228,15 +240,16 @@ arena_free(Arena *arena, void *ptr) {
 		fprintf(stderr, "Error: invalid ptr for free.\n");
 		return;
 	}
+	Arena *current_arena = arena_contains_this_ptr(arena, ptr);
 	u64 block_size = arena_get_block_size(ptr);
 	arena_set_data_size(ptr, 0);
 	arena_set_block_used(ptr, false);
 	bzero(ptr, block_size - sizeof(metadata));
-	arena->space += block_size;
-	arena->free_count++;
-	if (arena->free_count == MAX_FREE_COUNT){
-		arena_merge_free_blocks(arena);
-		arena->free_count = 0;
+	current_arena->space += block_size;
+	current_arena->free_count++;
+	if (current_arena->free_count == MAX_FREE_COUNT) {
+		arena_merge_free_blocks(current_arena);
+		current_arena->free_count = 0;
 	}
 }
 
@@ -267,7 +280,7 @@ arena_print(Arena *arena, bool content) {
 	printf("|-------------->>>\n");
 	printf("| Arena -> %p:\n", arena);
 	printf("| Size: %llu\n", arena->size);
-	printf("| Free: %llu byte Used: %llu byte\n| Free: %.4f%% Used: %.4f%%\n", arena->space, arena->offset, free_percent, used_percent);
+	printf("| Free: %llu byte Used: %llu byte\n| Free: %.4f%% Used: %.4f%%\n", arena->space, arena->offset - arena->space, free_percent, used_percent);
 	if (content){
 		u64 offset = 0;
 		while (offset < arena->offset) {
@@ -285,4 +298,13 @@ arena_print(Arena *arena, bool content) {
 		}
 	}
 	printf("|--------------<<<\n\n");
+}
+
+void arena_print_child(Arena *arena, bool content) {
+	Arena *next = arena;
+	arena_print(next, content);
+	while (next->child){
+		next = next->child;
+		arena_print(next, content);
+	}
 }
